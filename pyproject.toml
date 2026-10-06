@@ -3,7 +3,9 @@ name = "ring-walk-journal"
 version = "0.1.0"
 description = "Turn Pebble Index 01 voice notes from a walk into a journal, with a local Gemma"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "gradio>=6.29.1",
+]
 
 [dependency-groups]
 dev = ["pytest>=8"]
