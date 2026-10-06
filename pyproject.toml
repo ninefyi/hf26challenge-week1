@@ -1,0 +1,13 @@
+[project]
+name = "ring-walk-journal"
+version = "0.1.0"
+description = "Turn Pebble Index 01 voice notes from a walk into a journal, with a local Gemma"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
