@@ -5,7 +5,7 @@ The audio file is kept as ground truth; notes.ndjson is the index.
 """
 import hashlib
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from email import policy
 from email.parser import BytesParser
@@ -43,8 +43,8 @@ def parse_webhook(content_type: str, headers: dict, body: bytes):
     return fields, audio
 
 
-def save_note(root: Path, content_type: str, headers: dict, body: bytes) -> Note | None:
-    """Store the Note. Returns None for test events and for a Note already stored."""
+def read_webhook(content_type: str, headers: dict, body: bytes) -> tuple[Note, bytes | None] | None:
+    """Turn a webhook request into a Note and its audio. None for the app's test events."""
     fields, audio = parse_webhook(content_type, headers, body)
     if fields.get("test") == "true" or headers.get("X-Index-Test") == "true":
         return None
@@ -55,32 +55,42 @@ def save_note(root: Path, content_type: str, headers: dict, body: bytes) -> Note
 
     # Same recording retried by the phone gets the same id.
     digest = hashlib.sha256(str(recorded_at_ms).encode() + (audio or b"")).hexdigest()[:12]
-    note_id = f"{recorded_at_ms}-{digest}"
+    note = Note(
+        id=f"{recorded_at_ms}-{digest}",
+        recorded_at_ms=recorded_at_ms,
+        recorded_at=datetime.fromtimestamp(recorded_at_ms / 1000, timezone.utc).isoformat(),
+        transcript=fields.get("transcription", "").strip(),
+        audio_file=None,
+        trigger=headers.get("X-Index-Trigger"),
+    )
+    return note, audio
 
+
+def store_note(root: Path, note: Note, audio: bytes | None) -> Note | None:
+    """Write the Note to disk. Returns None if it is already stored."""
     index = root / "notes.ndjson"
     if index.exists() and any(
-        json.loads(line)["id"] == note_id for line in index.read_text().splitlines() if line
+        json.loads(line)["id"] == note.id for line in index.read_text().splitlines() if line
     ):
         return None
 
     audio_file = None
     if audio:
         (root / "audio").mkdir(parents=True, exist_ok=True)
-        audio_file = f"audio/{note_id}.m4a"
+        audio_file = f"audio/{note.id}.m4a"
         (root / audio_file).write_bytes(audio)  # audio first, so an index line never points at nothing
 
-    note = Note(
-        id=note_id,
-        recorded_at_ms=recorded_at_ms,
-        recorded_at=datetime.fromtimestamp(recorded_at_ms / 1000, timezone.utc).isoformat(),
-        transcript=fields.get("transcription", "").strip(),
-        audio_file=audio_file,
-        trigger=headers.get("X-Index-Trigger"),
-    )
+    stored = replace(note, audio_file=audio_file)
     root.mkdir(parents=True, exist_ok=True)
     with index.open("a") as f:
-        f.write(json.dumps(asdict(note), ensure_ascii=False) + "\n")
-    return note
+        f.write(json.dumps(asdict(stored), ensure_ascii=False) + "\n")
+    return stored
+
+
+def save_note(root: Path, content_type: str, headers: dict, body: bytes) -> Note | None:
+    """Store a webhook request as a Note. None for test events and duplicates."""
+    parsed = read_webhook(content_type, headers, body)
+    return store_note(root, *parsed) if parsed else None
 
 
 def load_notes(root: Path) -> list[Note]:

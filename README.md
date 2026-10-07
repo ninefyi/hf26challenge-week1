@@ -8,20 +8,26 @@ Built for the [Hacktoberfest Open-Source AI Challenge: Week 1, "Touch Grass"](ht
 
 ```
 ring (hold button, speak) ─► Pebble app on iPhone (transcribes on the phone)
-   ─► webhook over home Wi-Fi ─► receiver on your laptop (audio + transcript + time)
+   ─► webhook ─► Mailbox on Render (web service + Postgres) holds the note
+   ·····  later, at home, you run:  uv run python -m walkjournal.pull  ·····
+   ─► notes saved on your laptop, then deleted from the Mailbox
    ─► Gemma 3 12B via Ollama (observations + a short paragraph)
    ─► review screen: your words beside the draft; fix, untick, confirm
    ─► journals/2026-10-09_0800.md
 ```
 
-- **The ring and the phone do the listening.** The Pebble app transcribes on the phone and the app forwards each note to a webhook you set. This project only receives it.
+- **The ring and the phone do the listening.** The Pebble app transcribes on the phone and forwards each note to a webhook you set. This project only receives it.
+- **The Mailbox only holds notes.** It runs no model and keeps nothing once you have pulled. A note is deleted from it only after it is saved on your laptop.
+- **The model stays on your laptop.** Gemma reads your notes at home. No hosted model ever sees them. They do pass through the Mailbox, which is a trade-off you should know about.
 - **Your words are never replaced.** Every observation carries a quote that must appear word for word in the note it came from. If it does not, it is dropped. The finished journal lists your own notes under "My notes".
 - **You are the editor.** The journal is marked "Draft, not yet reviewed" until you confirm it in the review screen.
 - **Walks are found by time.** A gap of more than 30 minutes between notes starts a new walk.
 
+There is also a home-only mode with no cloud at all: `uv run python -m walkjournal.receiver` accepts the webhook straight onto your laptop over your own Wi-Fi.
+
 ## Run it
 
-You need an iPhone or Android with the Pebble app, the ring, and a laptop on the same Wi-Fi.
+You need an iPhone or Android with the Pebble app, the ring, and a laptop.
 
 ```bash
 brew install ollama && ollama serve &     # or install from ollama.com
@@ -29,24 +35,29 @@ ollama pull gemma3:12b                    # ~8 GB; I run it on a 16 GB M1 Pro
 uv sync
 ```
 
-1. Start the receiver and note your laptop's LAN address:
+### 1. Deploy the Mailbox on Render (free plan)
+
+1. Make two tokens, one for the ring and one for your laptop:
 
    ```bash
-   uv run python -m walkjournal.receiver
-   ipconfig getifaddr en0
+   python3 -c "import secrets; print(secrets.token_urlsafe(24))"
    ```
 
-2. In the Pebble app, set the ring's webhook to `http://<that address>:8787/hook` (plain `http` works) and use its test button.
-3. Go for a walk. Notes reach the receiver when the phone is back on your Wi-Fi.
-4. Review and confirm:
+2. In Render, create a new Blueprint from this repo. It reads [render.yaml](render.yaml), makes the web service and a free Postgres database, and asks for `INGEST_TOKEN` and `PULL_TOKEN`.
+3. In the Pebble app, set the ring's webhook to `https://<your-service>.onrender.com/hook/<INGEST_TOKEN>` and use its test button.
 
-   ```bash
-   uv run python -m walkjournal.app      # opens http://127.0.0.1:7861
-   ```
+A free Render service sleeps after 15 minutes without traffic and takes about a minute to wake, so the first note after a quiet spell can fail. The Pebble app keeps its own list of notes; resend any that are missing. A free Render Postgres database expires 30 days after it is created.
 
-   Or draft every walk without the screen: `uv run python -m walkjournal.cli`.
+### 2. After the walk
 
-Notes and audio are stored in `data/` and journals in `journals/`. Both are in `.gitignore`.
+```bash
+export MAILBOX_URL=https://<your-service>.onrender.com
+export PULL_TOKEN=<PULL_TOKEN>
+uv run python -m walkjournal.pull         # waits for the Mailbox to wake, saves notes to data/
+uv run python -m walkjournal.app          # review screen at http://127.0.0.1:7861
+```
+
+Or draft every walk without the screen: `uv run python -m walkjournal.cli`. Notes and audio are stored in `data/` and journals in `journals/`. Both are in `.gitignore`.
 
 ## What the ring sends
 
@@ -58,19 +69,19 @@ Measured from a real note: a `multipart/form-data` POST with `audio` (m4a, 16 kH
 uv run pytest
 ```
 
-The tests cover the webhook parsing, walk grouping, the quote check and the review table. They use a fake model, so they do not need Ollama.
+The tests cover the webhook parsing, the Mailbox and the pull (against a real local HTTP server), walk grouping, the quote check and the review table. They use a fake model and an in-memory store, so they need neither Ollama nor Postgres.
 
 ## Honest limits
 
 - **Drafting is slow.** Gemma 3 12B takes about a minute for a five-note walk on my laptop. It is meant to run at home after the walk, not in the field.
 - **The model is imperfect.** On a fabricated walk it filed "cool air" and "smells like rain" as thoughts, and sometimes attached a place the note did not tie to that item. The quote check blocks invented facts, not misfiled ones. That is what the review screen is for.
 - **Short or repeated notes are skipped** (fewer than three words, or one word repeated), so a real one-word note such as "heron" is not extracted.
-- **Notes are only received while the receiver is running** and the phone can reach the laptop.
+- **The free Mailbox can drop the first note after it sleeps.** Not yet tested on Render with the real ring; see the write-up for what happened on the walk.
 - **Tested so far on a fabricated walk.** Results from a real walk are in the write-up, not here.
 
 ## Privacy
 
-The model runs on your machine. Voice notes, transcripts and journals stay in `data/` and `journals/`, which are not committed. `spike_log.ndjson`, the raw log from the first webhook test, is not committed either.
+The model runs on your machine. Voice notes and transcripts pass through the Mailbox you deploy, are deleted from it once pulled, and are then kept only in `data/` and `journals/` on your laptop, which are not committed. `spike_log.ndjson`, the raw log from the first webhook test, is not committed either.
 
 ## License
 

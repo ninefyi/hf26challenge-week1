@@ -1,0 +1,28 @@
+# Render Blueprint: the Mailbox (web service + Postgres), both on the free plan.
+# INGEST_TOKEN and PULL_TOKEN are not in this file: Render asks for them when you create the
+# Blueprint. Make each with:  python3 -c "import secrets; print(secrets.token_urlsafe(24))"
+databases:
+  - name: walkjournal-db
+    plan: free
+    region: singapore
+
+services:
+  - type: web
+    name: walkjournal-mailbox
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m walkjournal.mailbox
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DATABASE_URL
+        fromDatabase:
+          name: walkjournal-db
+          property: connectionString
+      - key: INGEST_TOKEN
+        sync: false
+      - key: PULL_TOKEN
+        sync: false
