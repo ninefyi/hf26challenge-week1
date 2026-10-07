@@ -76,7 +76,7 @@ The tests cover the webhook parsing, the Mailbox and the pull (against a real lo
 - **Drafting is slow.** Gemma 3 12B takes about a minute for a five-note walk on my laptop. It is meant to run at home after the walk, not in the field.
 - **The model is imperfect.** On a fabricated walk it filed "cool air" and "smells like rain" as thoughts, and sometimes attached a place the note did not tie to that item. The quote check blocks invented facts, not misfiled ones. That is what the review screen is for.
 - **Short or repeated notes are skipped** (fewer than three words, or one word repeated), so a real one-word note such as "heron" is not extracted.
-- **The free Mailbox can drop the first note after it sleeps.** Not yet tested on Render with the real ring; see the write-up for what happened on the walk.
+- **The free Mailbox can drop the first note after it sleeps.** Tested end to end once with the real ring (ring, Pebble app, Render, Postgres, pull, laptop); not yet tested after the service has been idle, which is the case that matters. See the write-up for what happened on the walk.
 - **Tested so far on a fabricated walk.** Results from a real walk are in the write-up, not here.
 
 ## Privacy
