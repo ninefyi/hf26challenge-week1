@@ -5,6 +5,7 @@ The audio file is kept as ground truth; notes.ndjson is the index.
 """
 import hashlib
 import json
+import time
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from email import policy
@@ -20,6 +21,7 @@ class Note:
     transcript: str
     audio_file: str | None
     trigger: str | None
+    stored_at_ms: int | None = None  # when this computer saved it; older notes have none
 
 
 class BadWebhook(ValueError):
@@ -80,7 +82,7 @@ def store_note(root: Path, note: Note, audio: bytes | None) -> Note | None:
         audio_file = f"audio/{note.id}.m4a"
         (root / audio_file).write_bytes(audio)  # audio first, so an index line never points at nothing
 
-    stored = replace(note, audio_file=audio_file)
+    stored = replace(note, audio_file=audio_file, stored_at_ms=int(time.time() * 1000))
     root.mkdir(parents=True, exist_ok=True)
     with index.open("a") as f:
         f.write(json.dumps(asdict(stored), ensure_ascii=False) + "\n")
