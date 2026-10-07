@@ -120,7 +120,9 @@ def make_handler(store, ingest_token: str, pull_token: str):
                     if kv.startswith("limit=") and kv[6:].isdigit():
                         limit = max(1, min(int(kv[6:]), MAX_PULL))
                 notes = []
-                for note, audio in store.pending(limit):
+                pending = store.pending(limit)
+                print(f"pull: {len(pending)} pending", flush=True)
+                for note, audio in pending:
                     d = asdict(note)
                     d["audio_b64"] = base64.b64encode(audio).decode() if audio else None
                     notes.append(d)
@@ -132,6 +134,7 @@ def make_handler(store, ingest_token: str, pull_token: str):
             path = self.path.split("?")[0]
             if path.startswith("/hook/"):
                 if not _same(path[len("/hook/"):], ingest_token):
+                    print("hook: wrong token (check the URL in the Pebble app)", flush=True)
                     self._send(404, {"ok": False})
                     return
                 body = self._body()
@@ -143,8 +146,12 @@ def make_handler(store, ingest_token: str, pull_token: str):
                     print(f"rejected: {e}", flush=True)
                     self._send(400, {"ok": False})
                     return
-                if parsed and store.add(*parsed):
-                    print(f"stored {parsed[0].id}", flush=True)
+                if parsed is None:
+                    print("hook: test event, not stored", flush=True)
+                elif store.add(*parsed):
+                    print(f"hook: stored {parsed[0].id}", flush=True)
+                else:
+                    print(f"hook: duplicate {parsed[0].id}, ignored", flush=True)
                 self._send(200, {"ok": True})
             elif path == "/notes/ack":
                 if not self._authorised():
@@ -157,7 +164,9 @@ def make_handler(store, ingest_token: str, pull_token: str):
                 except (ValueError, KeyError, TypeError):
                     self._send(400, {"ok": False})
                     return
-                self._send(200, {"deleted": store.delete(ids)})
+                deleted = store.delete(ids)
+                print(f"ack: deleted {deleted} of {len(ids)}", flush=True)
+                self._send(200, {"deleted": deleted})
             else:
                 self._send(404, {"ok": False})
 
