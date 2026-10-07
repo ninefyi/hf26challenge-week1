@@ -2,3 +2,4 @@ spike_log.ndjson
 .venv/
 __pycache__/
 data/
+journals/
