@@ -8,17 +8,16 @@ from pathlib import Path
 import gradio as gr
 
 from .extract import KINDS, Ollama
-from .journal import clock, draft_walk, render_journal, walk_label, walk_stamp
+from .journal import clock, draft_walk, render_journal, select_walks, walk_label, walk_stamp
 from .notes import load_notes
 from .review import HEADERS, from_rows, to_rows
-from .walks import group_walks
 
 
-def build_app(data: Path, out: Path, model: str) -> gr.Blocks:
+def build_app(data: Path, out: Path, model: str, since=None, until=None, gap_min=None) -> gr.Blocks:
     llm = Ollama(model)
 
     def walks():
-        return group_walks(load_notes(data))
+        return select_walks(load_notes(data), since, until, gap_min)
 
     def choices():
         return [(walk_label(w), i) for i, w in enumerate(walks())]
@@ -77,8 +76,11 @@ def main():
     ap.add_argument("--out", type=Path, default=Path("journals"))
     ap.add_argument("--model", default="gemma3:12b")
     ap.add_argument("--port", type=int, default=7861)
+    ap.add_argument("--since", help="only notes at or after this local time, e.g. 2026-10-10T08:00")
+    ap.add_argument("--until", help="only notes before this local time")
+    ap.add_argument("--gap-min", type=int, help="minutes of quiet that start a new walk (default 30)")
     args = ap.parse_args()
-    build_app(args.data, args.out, args.model).launch(server_name="127.0.0.1", server_port=args.port)
+    build_app(args.data, args.out, args.model, args.since, args.until, args.gap_min).launch(server_name="127.0.0.1", server_port=args.port)
 
 
 if __name__ == "__main__":

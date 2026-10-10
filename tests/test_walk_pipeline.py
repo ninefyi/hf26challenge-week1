@@ -77,3 +77,13 @@ def test_where_dropped_when_already_in_what():
     n = note(1, 0, "Rest at the park gate today")
     llm = FakeLLM([{"kind": "place", "what": "park gate", "where": "park gate", "quote": "park gate"}])
     assert extract_observations(n, llm)[0].where is None
+
+
+def test_select_walks_window_and_gap():
+    from walkjournal.journal import select_walks
+    day = 1_791_590_400_000  # 2026-10-10 08:00 UTC+8
+    ns = [note(1, day, "a"), note(2, day + 41 * MIN, "b"), note(3, day + 400 * MIN, "c")]
+    assert [len(w.notes) for w in select_walks(ns)] == [1, 1, 1]
+    assert [len(w.notes) for w in select_walks(ns, gap_min=60)] == [2, 1]
+    assert [len(w.notes) for w in select_walks(ns, until="2026-10-10T13:00", gap_min=60)] == [2]
+    assert [len(w.notes) for w in select_walks(ns, since="2026-10-10T08:30", gap_min=600)] == [2]

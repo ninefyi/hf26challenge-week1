@@ -2,7 +2,8 @@
 from datetime import datetime, timedelta, timezone
 
 from .extract import Observation, extract_observations, write_paragraph
-from .walks import Walk
+from .notes import Note
+from .walks import GAP_MS, Walk, group_walks
 
 SGT = timezone(timedelta(hours=8))  # author-local; change if you walk elsewhere
 
@@ -51,3 +52,15 @@ def render_journal(walk: Walk, paragraph: str, observations: list[Observation], 
 def build_journal(walk: Walk, llm) -> str:
     paragraph, observations = draft_walk(walk, llm)
     return render_journal(walk, paragraph, observations)
+
+
+def select_walks(notes: list[Note], since: str | None = None, until: str | None = None, gap_min: int | None = None) -> list[Walk]:
+    """Group Notes into Walks, optionally limited to a time window (local time, e.g. 2026-10-10T08:00)."""
+    def ms(text: str) -> float:
+        return datetime.fromisoformat(text).replace(tzinfo=SGT).timestamp() * 1000
+
+    if since:
+        notes = [n for n in notes if n.recorded_at_ms >= ms(since)]
+    if until:
+        notes = [n for n in notes if n.recorded_at_ms < ms(until)]
+    return group_walks(notes, gap_min * 60_000 if gap_min else GAP_MS)
