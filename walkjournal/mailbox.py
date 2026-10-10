@@ -60,6 +60,13 @@ class PostgresStore:
         with self._connect() as conn:
             return conn.execute("DELETE FROM notes WHERE id = ANY(%s)", (ids,)).rowcount
 
+    def count(self) -> str:
+        """Row count read on a fresh connection, with the database name, to check writes really landed."""
+        with self._connect() as conn:
+            n = conn.execute("SELECT count(*) FROM notes").fetchone()[0]
+            db = conn.execute("SELECT current_database()").fetchone()[0]
+        return f"{n} rows in {db}"
+
 
 class MemoryStore:
     """For tests and local trials."""
@@ -78,6 +85,9 @@ class MemoryStore:
 
     def delete(self, ids):
         return sum(self.rows.pop(i, None) is not None for i in ids)
+
+    def count(self):
+        return f"{len(self.rows)} rows in memory"
 
 
 def _same(a: str, b: str) -> bool:
@@ -122,7 +132,7 @@ def make_handler(store, ingest_token: str, pull_token: str):
                         limit = max(1, min(int(kv[6:]), MAX_PULL))
                 notes = []
                 pending = store.pending(limit)
-                print(f"pull: {len(pending)} pending", flush=True)
+                print(f"pull: {len(pending)} pending; mailbox has {store.count()}", flush=True)
                 for note, audio in pending:
                     d = asdict(note)
                     d["audio_b64"] = base64.b64encode(audio).decode() if audio else None
@@ -150,7 +160,7 @@ def make_handler(store, ingest_token: str, pull_token: str):
                 if parsed is None:
                     print("hook: test event, not stored", flush=True)
                 elif store.add(*parsed):
-                    print(f"hook: stored {parsed[0].id}", flush=True)
+                    print(f"hook: stored {parsed[0].id}; mailbox now has {store.count()}", flush=True)
                 else:
                     print(f"hook: duplicate {parsed[0].id}, ignored", flush=True)
                 self._send(200, {"ok": True})
@@ -166,7 +176,7 @@ def make_handler(store, ingest_token: str, pull_token: str):
                     self._send(400, {"ok": False})
                     return
                 deleted = store.delete(ids)
-                print(f"ack: deleted {deleted} of {len(ids)}", flush=True)
+                print(f"ack: asked to delete {len(ids)}, deleted {deleted}; mailbox now has {store.count()}", flush=True)
                 self._send(200, {"deleted": deleted})
             else:
                 self._send(404, {"ok": False})
