@@ -111,7 +111,8 @@ def make_handler(store, ingest_token: str, pull_token: str):
         def do_GET(self):
             path, _, query = self.path.partition("?")
             if path == "/health":
-                self._send(200, {"ok": True})
+                # Render sets RENDER_GIT_COMMIT, so this shows which version is actually running.
+                self._send(200, {"ok": True, "commit": os.environ.get("RENDER_GIT_COMMIT", "")[:7] or None})
             elif path == "/notes":
                 if not self._authorised():
                     return
