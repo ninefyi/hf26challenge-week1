@@ -4,6 +4,8 @@ Walk with a [Pebble Index 01](https://repebble.com) ring on your finger, say wha
 
 Built for the [Hacktoberfest Open-Source AI Challenge: Week 1, "Touch Grass"](https://dev.to/challenges/hacktoberfest-week1-2026-10-05). Started on 6 October 2026, inside the challenge window.
 
+**Write-up:** [Voice2Note: I spoke to a ring for four hours, and the phone misheard me](https://dev.to/ninefyi/voice2note-i-spoke-to-a-ring-for-four-hours-and-the-phone-misheard-me-24lb), with what worked, what went wrong and what the model got wrong.
+
 ## How it works
 
 ```
@@ -76,8 +78,9 @@ The tests cover the webhook parsing, the Mailbox and the pull (against a real lo
 - **Drafting is slow.** Gemma 3 12B takes about a minute for a five-note walk on my laptop. It is meant to run at home after the walk, not in the field.
 - **The model is imperfect.** On a fabricated walk it filed "cool air" and "smells like rain" as thoughts, and sometimes attached a place the note did not tie to that item. The quote check blocks invented facts, not misfiled ones. That is what the review screen is for.
 - **Short or repeated notes are skipped** (fewer than three words, or one word repeated), so a real one-word note such as "heron" is not extracted.
-- **The free Mailbox can drop the first note after it sleeps.** Tested end to end once with the real ring (ring, Pebble app, Render, Postgres, pull, laptop); not yet tested after the service has been idle, which is the case that matters. See the write-up for what happened on the walk.
-- **Tested so far on a fabricated walk.** Results from a real walk are in the write-up, not here.
+- **The free Mailbox sleeps when idle.** On one real day, two of the three notes I used arrived while the service was asleep and were stored 10 to 14 seconds after it started waking. That is two cases, not a guarantee, and I did not test a long stretch away from home.
+- **The phone mishears, and the model repeats it.** On that day every note had one wrong word (3 of 29). The quote check only compares against the transcript, so it cannot catch a wrong word the phone wrote. The draft journal also put the notes out of time order and added a few words I did not say. See the write-up.
+- **Tested on one real day with three notes.** Not a study; the numbers are in the write-up.
 
 ## Privacy
 
